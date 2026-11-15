@@ -1,4 +1,4 @@
-// Token Radar dashboard (radar-3). No network: all data comes from data.js (window.RADAR).
+// Token Radar dashboard (radar-4). No network: all data comes from data.js (window.RADAR).
 //
 // The value model, stated here so the page recomputes every row it shows (the recompute check
 // in the detail view) and so a reader can verify the board from the snapshot alone:
@@ -52,6 +52,7 @@ $('stats').innerHTML = [
   ['&times;' + v.time_split_median_factor, `blind out-of-sample test — time-split (${v.time_split_train} older fit, ${v.time_split_test} newer tested, never seen by the fit)`],
   ['&times;' + v.blind_split_median_factor, `blind out-of-sample test — random 80/20 split (${v.blind_split_train} fit, ${v.blind_split_test} tested, never seen by the fit)`],
   [v.bootstrap_slope_low + ' – ' + v.bootstrap_slope_high, 'bootstrap slope, 5th–95th pct (' + R.model.bootstrap_resamples + ' resamples)'],
+  ['&times;' + v.pipeline_loo_median_factor, 'full-pipeline leave-one-out median error — curve × multipliers (' + v.comparables + ' comparables)'],
 ].map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join('');
 $('source').textContent = R.source;
 
@@ -62,14 +63,22 @@ $('source').textContent = R.source;
   const pts = R.comps.map((c) => ({ x: Math.log10(c.tvl_usd), y: Math.log10(c.mcap_usd) }));
   const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
   const x0 = Math.floor(Math.min(...xs)), x1 = Math.ceil(Math.max(...xs));
-  const y0 = Math.floor(Math.min(...ys, R.curve.intercept + R.curve.slope * x0)), y1 = Math.ceil(Math.max(...ys, R.curve.intercept + R.curve.slope * x1));
+  const yLine = (x) => R.curve.intercept + R.curve.slope * x;
+  // Typical-error band: the fitted line ± log10 of the curve's leave-one-out median
+  // error (×2.89). About half the comparables land inside it by construction; a dot
+  // outside it is a protocol the curve cannot price. The 95% band (line ± 1.96 ×
+  // residual sd) is ×28 either way — too wide to draw, and that is itself the point:
+  // the curve locates the order of magnitude, not the price.
+  const band = Math.log10(R.validation.loo_median_factor);
+  const y0 = Math.floor(Math.min(...ys, yLine(x0), yLine(x1), yLine(x0) - band, yLine(x1) - band)), y1 = Math.ceil(Math.max(...ys, yLine(x0), yLine(x1), yLine(x0) + band, yLine(x1) + band));
   const X = (x) => L + ((x - x0) / (x1 - x0)) * (W - L - Rt);
   const Y = (y) => H - B - ((y - y0) / (y1 - y0)) * (H - T - B);
   let s = '';
   for (let g = Math.ceil(y0); g <= y1; g++) s += `<line x1="${L}" y1="${Y(g)}" x2="${W - Rt}" y2="${Y(g)}" stroke="#1d2a3f"/><text x="${L - 6}" y="${Y(g) + 4}" fill="#93a3b8" font-size="10" text-anchor="end">${g}</text>`;
   for (let g = Math.ceil(x0); g <= x1; g++) s += `<text x="${X(g)}" y="${H - 10}" fill="#93a3b8" font-size="10" text-anchor="middle">${g}</text>`;
   s += `<text x="${L}" y="${H - 10}" fill="#93a3b8" font-size="10"></text>`;
-  s += `<line x1="${X(x0)}" y1="${Y(R.curve.intercept + R.curve.slope * x0)}" x2="${X(x1)}" y2="${Y(R.curve.intercept + R.curve.slope * x1)}" stroke="#f5b83d" stroke-width="2"/>`;
+  s += `<polygon points="${X(x0)},${Y(yLine(x0) + band)} ${X(x1)},${Y(yLine(x1) + band)} ${X(x1)},${Y(yLine(x1) - band)} ${X(x0)},${Y(yLine(x0) - band)}" fill="#5aa9ff" opacity="0.14"/>`;
+  s += `<line x1="${X(x0)}" y1="${Y(yLine(x0))}" x2="${X(x1)}" y2="${Y(yLine(x1))}" stroke="#f5b83d" stroke-width="2"/>`;
   for (const p of pts) s += `<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="3" fill="#5aa9ff" opacity="0.75"/>`;
   s += `<text x="${L}" y="${T + 4}" fill="#93a3b8" font-size="11">log10 market cap</text><text x="${W - Rt}" y="${H - 10}" fill="#93a3b8" font-size="11" text-anchor="end">log10 TVL</text>`;
   svg.innerHTML = s;

@@ -1,4 +1,4 @@
-// A token-radar-01 entry, radar-3 (Node 22, standard library only).
+// A token-radar-01 entry, radar-4 (Node 22, standard library only).
 //
 // The program reads the sealed snapshot from /input/snapshot.json (or --input <file|dir>), fits
 // the comps size curve and scores every pre-token protocol with the model in lib/model.ts, writes
@@ -87,5 +87,6 @@ writeFileSync(join(out, 'dossier.json'), buildDossier(out, { text_max_bytes: TEX
 process.stdout.write(
   `token radar: ${snapshot.protocols.length} protocols, ${snapshot.watchlist.length} on the watchlist, ${board.length} rows scored (${radar.audited_size} audited, ${radar.early_size} early, ${radar.live_size} live set aside)\n` +
     `token radar: curve log10(mcap) = ${radar.curve.intercept} + ${radar.curve.slope} x log10(tvl), R2 ${radar.curve.r2}; LOO x${radar.validation.loo_median_factor}, time-split x${radar.validation.time_split_median_factor}\n` +
+    `token radar: pipeline LOO x${radar.validation.pipeline_loo_median_factor}; LOCO growth x${radar.validation.loco_growth_median_factor}, maturity x${radar.validation.loco_maturity_median_factor}, chains x${radar.validation.loco_chains_median_factor}, winsor x${radar.validation.loco_winsor_median_factor}\n` +
     `token radar: wrote ${join(out, 'board.json')}, ${join(out, 'data.js')}, ${join(out, 'dashboard')} (3 files), ${join(out, 'screenshots')} (${shots.length} images) and ${join(out, 'dossier.json')}\n`,
 );

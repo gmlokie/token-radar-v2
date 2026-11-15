@@ -50,6 +50,66 @@ confirms it matches the board.
 - **Bootstrap:** 200 resamples of the comparables (fixed seed, deterministic). The
   slope's 5th–95th percentile is 0.26–0.63: the curve is stable, not one sample's
   accident.
+- **Full-pipeline leave-one-out:** the same leave-one-out, but over the whole price —
+  curve × multipliers — instead of the curve alone. Median error ×2.80; 27.2% of
+  comparables predicted within 2×. The multipliers as a group improve the curve's
+  ×2.89 to ×2.80: the whole price is what the board shows, so this is the number that
+  describes the board.
+- **LOCO (leave-one-covariate-out):** the full-pipeline leave-one-out with one input
+  neutralised at a time — growth, maturity, chains, the winsor cap. The table and the
+  honest reading are in the LOCO section below.
+
+## LOCO — do the multipliers earn their place?
+
+The curve's tests above validate the curve. The multipliers were hand-set, so they
+get their own test: the full-pipeline leave-one-out, run five times — once with every
+input in place, once with each input neutralised (the growth multiplier set to 1, the
+maturity multiplier set to 1, the chain multiplier set to 1, the winsor cap removed so
+the fit sees the real market caps). Each run refits the curve without each comparable
+and predicts it. The median error factor, 92 comparables, same harness throughout:
+
+| input dropped | median error | change vs full pipeline |
+|---|---|---|
+| none (full pipeline) | ×2.80 | — |
+| growth | ×2.98 | +0.18 |
+| maturity | ×3.14 | +0.34 |
+| chains | ×2.73 | −0.07 |
+| winsor cap | ×3.28 | +0.48 |
+
+The reading, in order of strength. The winsor cap is the clearest contributor: without
+it the median error rises to ×3.28 and the fit's R² falls from 0.1628 to 0.1041 — the
+cap is what keeps one outlier token from dragging the line, and the price the board
+shows is better for it. Maturity and growth point the right way: dropping either
+worsens the median. Chains is neutral: dropping it moves the median from ×2.80 to
+×2.73, a hair better, and it moves nothing on the within-2× share. Chains stays: the
+difference is inside the noise (see below), the multiplier is capped at 1.12 and
+deliberately small, and removing a stated input on a 0.07 median shift would be
+over-fitting to 92 comparables.
+
+The honest caveat: with 92 comparables, no single multiplier's median contribution is
+statistically decisive. A paired bootstrap over the per-comparable errors (500
+resamples, seed 20261115) puts the 5th–95th percentile of each drop's median change
+across zero — growth −0.14 to +0.36, maturity −0.15 to +0.68, chains −0.37 to +0.11,
+winsor −0.40 to +0.63. The mean log-error tells the same mixed story: dropping
+maturity or growth slightly improves the mean (0.5969 / 0.6048 vs 0.6076), because a
+few large errors dominate the mean and the median is the robust measure this entry
+reports. So the claim this section makes is the group one, not the single-input one:
+the pipeline as a whole beats the curve alone (×2.80 vs ×2.89), the winsor cap is the
+input the evidence most supports, and no input is carried on assertion alone — each
+was tested, and the one that tested neutral is stated as neutral. No model change
+follows from this test: no variant improves the median decisively, and the board's
+values are unchanged.
+
+## The prediction band — what the curve can and cannot say
+
+The dashboard's chart draws the curve's typical-error band: the fitted line ± the
+leave-one-out median error (×2.89), so about half the comparables land inside it and
+a dot outside it is a protocol the curve cannot price. The band is drawn at the
+typical error rather than the 95% band because the 95% band is ±1.96 × the residual
+sd (0.7403 in log10) — ±×28 either way, a total span of ×798. Drawn, it would drown
+the chart; stated, it is the honest number: the curve locates the order of magnitude,
+not the price. A reader who wants the board's verdicts to mean more than that is
+asking the curve for something its own residuals say it cannot give.
 
 ## The honest limitation: R² 0.16
 

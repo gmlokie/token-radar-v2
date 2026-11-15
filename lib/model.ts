@@ -1,4 +1,4 @@
-// The token radar's model, radar-3: a comps-fitted size curve, validated out of sample.
+// The token radar's model, radar-4: a comps-fitted size curve, validated out of sample.
 //
 // The board covers every slug in the snapshot's watchlist (the floor, never a ceiling) and adds
 // pre-token protocols below the floor, ranked by implied value. A protocol is pre-token when its
@@ -42,6 +42,12 @@
 //     random 80% of the comparables (fixed seed), test on the 20% the fit never saw.
 //   - Bootstrap: 200 resamples of the comparables (seeded, deterministic), the slope's 5th to
 //     95th percentile: whether the curve is stable or one sample's accident.
+//   - LOCO: leave-one-covariate-out over the full pipeline. The tests above validate the
+//     curve; this one validates the whole price — curve x multipliers — and each input in
+//     turn: refit without each comparable, predict it with one input neutralised, and take
+//     the median error factor. A dropped input that worsens the error earns its place; one
+//     that improves it is decoration. The multipliers were hand-set, so this is the test
+//     that says whether they are tested choices or decoration.
 //
 // The farm plan is netted to the dollar: every step states its cost and its time, the plan sums
 // the gas, and the last step gives a verdict (FARM, THIN or SKIP) from the protocol's implied
@@ -128,7 +134,7 @@ export const MODEL: ModelConstants = {
 };
 
 /** The model's version label: the dashboard names it and the rules quote it. */
-export const MODEL_VERSION = 'radar-3';
+export const MODEL_VERSION = 'radar-4';
 
 /** How many pre-token protocols below the watchlist floor the early radar carries, by implied value. */
 export const EARLY_ROWS = 160;
@@ -229,6 +235,14 @@ export interface Validation {
   bootstrap_slope_low: number;
   bootstrap_slope_mid: number;
   bootstrap_slope_high: number;
+  /** The full pipeline's leave-one-out error: curve x multipliers, the price the board shows. */
+  pipeline_loo_median_factor: number;
+  pipeline_loo_within_2x: number;
+  /** LOCO: the pipeline LOO with one input neutralised — growth, maturity, chains, winsor cap. */
+  loco_growth_median_factor: number;
+  loco_maturity_median_factor: number;
+  loco_chains_median_factor: number;
+  loco_winsor_median_factor: number;
 }
 
 /** Everything the dashboard needs: the board, the live set, the curve and its validation. */
@@ -447,6 +461,15 @@ export function fitCurve(snapshot: Snapshot, model: ModelConstants = MODEL): Fit
     .sort((a, b) => a - b);
   const blindMedian = median(blindFactors);
 
+  // LOCO: leave-one-covariate-out over the full pipeline. The curve-only LOO above
+  // tests the curve; this tests the whole price the board shows — curve x multipliers —
+  // and each input in turn. Validation only: the board is unchanged by these numbers.
+  const locoFull = pipelineLoo(comps, snapshot.as_of, model, 'full');
+  const locoGrowth = pipelineLoo(comps, snapshot.as_of, model, 'no-growth');
+  const locoMaturity = pipelineLoo(comps, snapshot.as_of, model, 'no-maturity');
+  const locoChains = pipelineLoo(comps, snapshot.as_of, model, 'no-chains');
+  const locoWinsor = pipelineLoo(comps, snapshot.as_of, model, 'no-winsor');
+
   return {
     fit,
     winsorCap,
@@ -463,8 +486,71 @@ export function fitCurve(snapshot: Snapshot, model: ModelConstants = MODEL): Fit
       bootstrap_slope_low: Math.round(lo * 1000) / 1000,
       bootstrap_slope_mid: Math.round(mid * 1000) / 1000,
       bootstrap_slope_high: Math.round(hi * 1000) / 1000,
+      pipeline_loo_median_factor: locoFull.medianFactor,
+      pipeline_loo_within_2x: locoFull.within2x,
+      loco_growth_median_factor: locoGrowth.medianFactor,
+      loco_maturity_median_factor: locoMaturity.medianFactor,
+      loco_chains_median_factor: locoChains.medianFactor,
+      loco_winsor_median_factor: locoWinsor.medianFactor,
     },
     comps: comps.map((p) => ({ slug: p.slug, name: p.name, category: p.category, tvl_usd: p.tvl_usd, mcap_usd: p.mcap_usd! })),
+  };
+}
+
+/** The three hand-set multipliers one protocol gets, and the growth percent behind the first. */
+export function multiplierSet(
+  protocol: SnapshotProtocol,
+  asOf: string,
+  model: ModelConstants = MODEL,
+): { growthPct: number; growthMult: number; maturityMult: number; chainMult: number; age: number | null } {
+  const age = ageDays(asOf, protocol.listed_at);
+  const rawGrowth = finite(protocol.change_7d, 0);
+  const growthPct = Math.min(model.growth_cap, Math.max(model.growth_floor, rawGrowth));
+  const growthMult = 1 + (growthPct / 100) * model.growth_weight;
+  const ageForModel = age ?? model.unknown_age_days;
+  const maturityMult = model.maturity_floor + (Math.min(Math.max(ageForModel, 0), model.maturity_days) / model.maturity_days) * model.maturity_range;
+  const chainMult = Math.min(model.chain_cap, 1 + model.chain_step * (protocol.chains.length - 1));
+  return { growthPct, growthMult, maturityMult, chainMult, age };
+}
+
+/** One LOCO variant: which input the full-pipeline leave-one-out drops. */
+export type LocoVariant = 'full' | 'no-growth' | 'no-maturity' | 'no-chains' | 'no-winsor';
+
+/**
+ * The full pipeline's leave-one-out error under one LOCO variant: for each comparable,
+ * refit the curve without it, predict it with curve x multipliers (one input neutralised
+ * per variant), and take the error factor against its winsorised market cap. The median
+ * is the number the entry reports, the same statistic as the curve-only LOO. 'no-winsor'
+ * refits on uncapped market caps, so its target is the real market cap and its R² is
+ * not comparable to the winsorised fits — the median error is the comparison that holds.
+ */
+export function pipelineLoo(
+  comps: SnapshotProtocol[],
+  asOf: string,
+  model: ModelConstants = MODEL,
+  variant: LocoVariant = 'full',
+): { medianFactor: number; within2x: number } {
+  const ratios = comps.map((p) => p.mcap_usd! / p.tvl_usd).sort((a, b) => a - b);
+  const cap = variant === 'no-winsor' ? Infinity : ratios[Math.floor(ratios.length * (model.winsor_percentile / 100))]!;
+  const xs = comps.map((p) => Math.log10(p.tvl_usd));
+  const ys = comps.map((p) => Math.log10(Math.min(p.mcap_usd!, cap * p.tvl_usd)));
+  const factors: number[] = [];
+  for (let i = 0; i < comps.length; i++) {
+    const f = ols(
+      xs.filter((_, j) => j !== i),
+      ys.filter((_, j) => j !== i),
+    );
+    const m = multiplierSet(comps[i]!, asOf, model);
+    let mult = 1;
+    if (variant !== 'no-growth') mult *= m.growthMult;
+    if (variant !== 'no-maturity') mult *= m.maturityMult;
+    if (variant !== 'no-chains') mult *= m.chainMult;
+    factors.push(Math.pow(10, Math.abs(f.intercept + f.slope * xs[i]! + Math.log10(mult) - ys[i]!)));
+  }
+  factors.sort((a, b) => a - b);
+  return {
+    medianFactor: Math.round(median(factors) * 100) / 100,
+    within2x: Math.round((factors.filter((f) => f <= 2).length / factors.length) * 1000) / 1000,
   };
 }
 
@@ -475,16 +561,10 @@ export function impliedValue(
   fitted: FittedCurve,
   model: ModelConstants = MODEL,
 ): { implied: number; growthPct: number; growthMult: number; maturityMult: number; chainMult: number; age: number | null } {
-  const age = ageDays(asOf, protocol.listed_at);
-  const rawGrowth = finite(protocol.change_7d, 0);
-  const growthPct = Math.min(model.growth_cap, Math.max(model.growth_floor, rawGrowth));
-  const growthMult = 1 + (growthPct / 100) * model.growth_weight;
-  const ageForModel = age ?? model.unknown_age_days;
-  const maturityMult = model.maturity_floor + (Math.min(Math.max(ageForModel, 0), model.maturity_days) / model.maturity_days) * model.maturity_range;
-  const chainMult = Math.min(model.chain_cap, 1 + model.chain_step * (protocol.chains.length - 1));
+  const m = multiplierSet(protocol, asOf, model);
   const curve = Math.pow(10, fitted.fit.intercept + fitted.fit.slope * Math.log10(protocol.tvl_usd));
-  const implied = Math.max(1, Math.round(curve * growthMult * maturityMult * chainMult));
-  return { implied, growthPct, growthMult, maturityMult, chainMult, age };
+  const implied = Math.max(1, Math.round(curve * m.growthMult * m.maturityMult * m.chainMult));
+  return { implied, growthPct: m.growthPct, growthMult: m.growthMult, maturityMult: m.maturityMult, chainMult: m.chainMult, age: m.age };
 }
 
 /** The headline sentence's figures: how many watchlist slugs, how many rows, how many live protocols. */

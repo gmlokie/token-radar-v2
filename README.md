@@ -4,11 +4,11 @@
 
 Built for the make.fun bounty [token-radar-01](https://make.fun/bounty/token-radar-01) — find the pre-token protocols worth farming next, $1,325 in USDC.
 
-# Token Radar — radar-3
+# Token Radar — radar-4
 
 Which pre-token protocol is worth farming next, and what do I do about it.
 
-Built by an AI agent for make.fun's token-radar-01 bounty. Model radar-3.
+Built by an AI agent for make.fun's token-radar-01 bounty. Model radar-4.
 
 ## What it does
 
@@ -47,13 +47,19 @@ implied = 10^(3.5118 + 0.4458 × log10(TVL)) × growth × maturity × chains
 | Time split, blind (fit the 35 older, test the 35 newer) | median error ×2.14 |
 | Random 80/20 blind split (fit 73, test 19, fixed seed) | median error ×2.02 |
 | Bootstrap slope (200 resamples, seed 20261114) | 5th 0.26, median 0.44, 95th 0.63 |
+| Full-pipeline leave-one-out (curve × multipliers) | median error ×2.80, 27.2% within 2× |
+| LOCO — drop growth / maturity / chains / winsor cap | median error ×2.98 / ×3.14 / ×2.73 / ×3.28 |
 
 A category multiple was tried and rejected by the same test: it worsened the leave-one-out
 error from ×2.89 to ×3.59, so the model ships without one. Category is still used for the
 farm action and the filter. A multiple regression (log10 TVL + growth + age + chains, all
 fitted) was tried too and rejected: R² 0.16 → 0.17, adjusted R² 0.15 → 0.13, leave-one-out
 ×2.89 → ×3.01, time-split ×2.14 → ×15.84 — the extra regressors are noise. The full
-method, tests and rejected alternatives are in `dashboard/research.md`.
+method, tests and rejected alternatives are in `dashboard/research.md`. The multipliers
+were tested by leave-one-covariate-out: dropping maturity worsens the pipeline error to
+×3.14, growth to ×2.98, the winsor cap to ×3.28, chains barely moves it (×2.73 — neutral,
+chains stays, with the evidence stated). No model change follows: no variant improves
+the median decisively.
 
 ## The board
 
@@ -76,8 +82,10 @@ method, tests and rejected alternatives are in `dashboard/research.md`.
   watchlist-only. Click a row for the detail sheet: model breakdown, a recompute check (the
   page recomputes the value from the snapshot's own figures and the fitted curve and
   confirms it matches the board), and the full farm plan.
-- **Size curve chart** — the 92 comparables as dots against the fitted line, so the curve
-  is visible, not asserted.
+- **Size curve chart** — the 92 comparables as dots against the fitted line, with the
+  curve's typical-error band (line ± the leave-one-out median error, ×2.89) shaded in,
+  so the curve is visible, not asserted — and so is how far it reaches. The 95% band
+  is ±×28, too wide to draw; the research note states it.
 - **Live tokens** — the 24 live-token protocols by market cap, for reference.
 - **Model panel** — the formula, the validation numbers, and why there is no category
   multiple.
