@@ -173,3 +173,40 @@ function openDetail(slug) {
   $('detail').showModal();
 }
 render();
+
+// ---- deep-linking via URL params (default behaviour unchanged when no params):
+//   ?view=board                            — the full board (default)
+//   ?view=detail&row=<name|slug|rank>      — board + detail modal open on that row
+//   ?view=filtered&verdict=FARM|THIN|SKIP — board pre-filtered to that verdict
+// Unknown views/values fall back to the plain board. Guarded so non-browser
+// runtimes without `location` (Node/vm smoke test) run exactly as before.
+(function deepLink() {
+  let search = '';
+  try {
+    if (typeof location === 'undefined' || !location.search) return;
+    search = location.search;
+  } catch (e) { return; }
+  // Minimal query parser (no URLSearchParams dependency — works in any JS runtime).
+  const params = {};
+  search.replace(/^\?/, '').split('&').forEach((pair) => {
+    const i = pair.indexOf('=');
+    if (i < 0) return;
+    try { params[pair.slice(0, i).toLowerCase()] = decodeURIComponent(pair.slice(i + 1).replace(/\+/g, ' ')); } catch (e) { /* bad encoding: ignore */ }
+  });
+  const view = (params.view || 'board').toLowerCase();
+  if (view === 'filtered') {
+    const v = (params.verdict || '').toUpperCase();
+    if (['FARM', 'THIN', 'SKIP'].includes(v)) { $('verdict').value = v; render(); }
+    return;
+  }
+  if (view === 'detail') {
+    const q = (params.row || '').trim().toLowerCase();
+    if (!q) return;
+    const row = (/^\d+$/.test(q) ? R.rows.find((x) => String(x.rank) === q) : null)
+      || R.rows.find((x) => x.slug.toLowerCase() === q || x.name.toLowerCase() === q)
+      || R.rows.find((x) => x.name.toLowerCase().includes(q));
+    if (row) openDetail(row.slug);
+    return;
+  }
+  // 'board' and anything unknown: default board, nothing to do.
+})();
