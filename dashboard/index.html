@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Radar — radar-3</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header>
+  <div>
+    <h1>Token Radar <span class="ver">radar-3</span></h1>
+    <p class="sub">Which pre-token protocol is worth farming next, and what do I do about it.</p>
+  </div>
+  <div class="meta" id="meta"></div>
+</header>
+
+<section class="model" id="model">
+  <h2>How the value is fitted — not asserted</h2>
+  <p id="curve"></p>
+  <div class="stats" id="stats"></div>
+  <p class="note">A single multiple overstates a large protocol tenfold: the comparables' market-cap/TVL
+  falls from 0.42 at $5–50M of TVL to 0.02 at $1–5B. So the value is a curve fitted on the
+  92 tokens that already trade, winsorised at the 90th percentile, and the curve is tested
+  out of sample before it prices anything. A category multiple was tried and rejected by the
+  same test: it worsened the leave-one-out error from &times;2.89 to &times;3.59. The board's
+  198 rows come from an audit funnel over the snapshot's 758 protocols: 342 are strict
+  pre-token, and 144 of those are excluded as wrapped, staked, bridged, exchange or versioned
+  products of a token that already trades (CEX 42, liquid staking 38, bridges 43, versioned
+  names 11, wrapped or staked names 5, restaking 5).</p>
+  <div class="chart-wrap">
+    <h3>The size curve</h3>
+    <p class="chart-note">Each dot is one of the 92 tokens that already trade (log TVL against log market cap).
+    The line is the fitted curve. Big protocols sit low on the line: that is why a large
+    protocol's implied value is smaller than its TVL times a flat multiple.</p>
+    <svg id="chart" viewBox="0 0 640 360" role="img" aria-label="Size curve chart"></svg>
+  </div>
+</section>
+
+<nav class="tabs">
+  <button id="tab-board" class="active">Board</button>
+  <button id="tab-live">Live tokens</button>
+  <span class="count" id="count"></span>
+</nav>
+
+<section class="model" id="research">
+  <h2>Research note — the method, the tests, the limits</h2>
+  <p class="note">The full note is <a href="research.md">research.md</a>: the value is a curve
+  fitted on the 92 tokens that already trade (log<sub>10</sub>(market cap) = 3.5118 + 0.4458
+  &times; log<sub>10</sub>(TVL)), tested out of sample — leave-one-out median error &times;2.89,
+  blind time-split &times;2.14, blind random 80/20 split &times;2.02, bootstrap slope 0.26–0.63 — with R&sup2; 0.16 stated honestly.
+  A category multiple was tried and rejected (&times;2.89 &rarr; &times;3.59), and so was a
+  multiple regression on growth, age and chains (time-split &times;2.14 &rarr; &times;15.84).
+  The board's 198 rows are the complete rankable set under the strict pre-token definition.</p>
+</section>
+
+<section class="filters" id="filters">
+  <input id="q" type="search" placeholder="Search name or slug" aria-label="Search">
+  <select id="cat" aria-label="Category"><option value="">All categories</option></select>
+  <select id="chain" aria-label="Chain"><option value="">All chains</option></select>
+  <select id="verdict" aria-label="Verdict">
+    <option value="">All verdicts</option><option>FARM</option><option>THIN</option><option>SKIP</option>
+  </select>
+  <label class="wl"><input type="checkbox" id="wl"> Watchlist only</label>
+</section>
+
+<main>
+  <table id="board">
+    <thead><tr>
+      <th data-k="rank">#</th><th data-k="name">Protocol</th><th data-k="category">Category</th>
+      <th data-k="chains">Chains</th><th data-k="tvl_usd">TVL</th><th data-k="change_7d">7d</th>
+      <th data-k="age_days">Age</th><th data-k="implied_value_usd">Implied value</th>
+      <th data-k="verdict">Verdict</th><th data-k="farm_cost_usd">Farm gas</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <table id="live" hidden>
+    <thead><tr><th>Protocol</th><th>Category</th><th>Chains</th><th>TVL</th><th>Market cap</th><th>7d</th></tr></thead>
+    <tbody id="live-rows"></tbody>
+  </table>
+</main>
+
+<dialog id="detail">
+  <form method="dialog"><button class="close" aria-label="Close">✕</button></form>
+  <div id="detail-body"></div>
+</dialog>
+
+<footer>
+  <p>Implied value is this entry's own claim, never make.fun's. A protocol is listed as
+  pre-token when its DefiLlama record carries no token — that is the record, not proof it has
+  none. Wrapped, staked and bridged products of a token that already trades are never ranked:
+  they are not launches waiting to happen. Data: <span id="source"></span></p>
+  <p>Built by an AI agent for make.fun's token-radar-01 bounty. Model radar-3.</p>
+</footer>
+<script src="../data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
