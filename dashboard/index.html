@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Token Radar — radar-4</title>
+<title>Token Radar — radar-5</title>
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
 <header>
   <div>
-    <h1>Token Radar <span class="ver">radar-4</span></h1>
+    <h1>Token Radar <span class="ver">radar-5</span></h1>
     <p class="sub">Which pre-token protocol is worth farming next, and what do I do about it.</p>
   </div>
   <div class="meta" id="meta"></div>
@@ -23,7 +23,13 @@
   falls from 0.42 at $5–50M of TVL to 0.02 at $1–5B. So the value is a curve fitted on the
   92 tokens that already trade, winsorised at the 90th percentile, and the curve is tested
   out of sample before it prices anything. A category multiple was tried and rejected by the
-  same test: it worsened the leave-one-out error from &times;2.89 to &times;3.59. The board's
+  same test: it worsened the leave-one-out error from &times;2.89 to &times;3.59 — and a second
+  test with shrunk family offsets worsened the full-pipeline leave-one-out from &times;2.80 to
+  &times;3.96, so no family multiple ships. Every row also carries a costed farm plan: a
+  $1,000 slice of a 10% airdrop, minus all-in fees (four transactions on the plan's cheapest
+  chain, plus a bridge when that chain is not Ethereum), minus the 4% T-bill yield the
+  capital gives up over the hold — the verdict follows the net, not the value: FARM beats
+  every cost, THIN beats the fees, SKIP beats neither. The board's
   198 rows come from an audit funnel over the snapshot's 758 protocols: 342 are strict
   pre-token, and 144 of those are excluded as wrapped, staked, bridged, exchange or versioned
   products of a token that already trades (CEX 42, liquid staking 38, bridges 43, versioned
@@ -58,7 +64,12 @@
   The full pipeline — curve &times; multipliers — is tested too: leave-one-out median error
   &times;2.80, and leave-one-covariate-out: dropping maturity worsens it to &times;3.14, growth
   to &times;2.98, the winsor cap to &times;3.28, and chains barely moves it (&times;2.73 — neutral,
-  chains stays, with the evidence stated in the research note). The chart's shaded band is
+  chains stays, with the evidence stated in the research note). A second family test, with
+  shrunk offsets over six mechanism families, worsened the pipeline leave-one-out to
+  &times;3.96 at every shrinkage tried, so the board prices without one. The farm verdicts
+  are economics, not value lines: each row's $1,000 slice is netted against its fees and
+  the T-bill yield given up, and the detail view shows the net at 5%, 10% and 20% airdrop
+  shares. The chart's shaded band is
   the curve's typical-error band; the 95% band is &plusmn;&times;28.
   The board's 198 rows are the complete rankable set under the strict pre-token definition.</p>
 </section>
@@ -76,10 +87,12 @@
 <main>
   <table id="board">
     <thead><tr>
-      <th data-k="rank">#</th><th data-k="name">Protocol</th><th data-k="category">Category</th>
-      <th data-k="chains">Chains</th><th data-k="tvl_usd">TVL</th><th data-k="change_7d">7d</th>
+      <th data-k="rank">#</th><th data-k="name">Protocol</th>
+      <th data-k="tvl_usd">TVL</th><th data-k="change_7d">7d</th>
       <th data-k="age_days">Age</th><th data-k="implied_value_usd">Implied value</th>
-      <th data-k="verdict">Verdict</th><th data-k="farm_cost_usd">Farm gas</th>
+      <th data-k="slice_usd">$1.0K slice</th><th data-k="net_usd">Net of all costs</th>
+      <th data-k="verdict">Verdict</th><th data-k="fees_usd">Fees</th>
+      <th data-k="hold_days">Hold</th><th data-k="work_hours">Work</th>
     </tr></thead>
     <tbody id="rows"></tbody>
   </table>
@@ -99,7 +112,7 @@
   pre-token when its DefiLlama record carries no token — that is the record, not proof it has
   none. Wrapped, staked and bridged products of a token that already trades are never ranked:
   they are not launches waiting to happen. Data: <span id="source"></span></p>
-  <p>Built by an AI agent for make.fun's token-radar-01 bounty. Model radar-4.</p>
+  <p>Built by an AI agent for make.fun's token-radar-01 bounty. Model radar-5.</p>
 </footer>
 <script src="../data.js"></script>
 <script src="app.js"></script>

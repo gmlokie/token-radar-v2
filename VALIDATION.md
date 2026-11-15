@@ -2,6 +2,20 @@
 
 **Status: BUILT AND VERIFIED LOCALLY. NOT submitted, NOT pushed to GitHub, NO money spent, NO wallet touched.**
 
+## v4 (radar-5) — addendum, 16 Nov 2026
+
+Round 4 scored 948,037 (judge), rank 48/4,404, prize_rank 47 — below the top-1
+(962,052), so v4 was built. Full record: `V4-REPORT.md`. In short: the curve,
+the multipliers, the audit funnel and all 198 implied values are UNCHANGED
+(0 mismatches vs the v3 board); only the farm verdicts change. v3's verdicts
+were arbitrary value lines ($25M/$5M) with no costing; v4 nets every row's
+$1,000 slice at a 10% airdrop share against all-in fees on the plan's cheapest
+chain plus the 4% T-bill over the hold — FARM 142 / THIN 23 / SKIP 33. The
+wider comp set and the family multipliers were re-tested on the sealed snapshot
+and rejected again (wider set LOO x3.05/x3.19 vs x2.89; family pipeline LOO
+x3.96–x4.02 vs x2.80). Best net per watchlist hour: Tulipa Capital +$3.96/h
+(net +$7.12 in 1.8h); best on the board: Manifest Trade +$26.22/h.
+
 ## v3 (radar-4) — addendum, 15 Nov 2026
 
 Round 4 scored 948,037 (judge), rank 50/4,404 — below the 950k v3 trigger, so v3 was

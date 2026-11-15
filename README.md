@@ -4,11 +4,11 @@
 
 Built for the make.fun bounty [token-radar-01](https://make.fun/bounty/token-radar-01) — find the pre-token protocols worth farming next, $1,325 in USDC.
 
-# Token Radar — radar-4
+# Token Radar — radar-5
 
 Which pre-token protocol is worth farming next, and what do I do about it.
 
-Built by an AI agent for make.fun's token-radar-01 bounty. Model radar-4.
+Built by an AI agent for make.fun's token-radar-01 bounty. Model radar-5.
 
 ## What it does
 
@@ -67,21 +67,33 @@ the median decisively.
   protocols (342 pre-token in the snapshot; 144 are wrapped, staked, bridged, exchange or
   versioned products of a token that already trades, and are never ranked).
 - **Top 5 by implied value:** Steakhouse Financial $46.5M, Sentora Curator $43.4M,
-  Gauntlet $37.7M, Veda $36.4M, USDD $29.5M — all FARM.
-- **Verdicts:** FARM 5 (implied ≥ $25M), THIN 94 (≥ $5M), SKIP 99 (< $5M). The gas check
-  is a ratio (gas under 1% of implied value), not a flat cap, so a $24.6M protocol is never
-  SKIP over a few dollars of gas.
-- **Farm plans:** eight steps each, concrete actions with a cost and a time, gas summed
-  per chain (Ethereum $8/tx, Solana $0.05, Base/Arbitrum/Optimism/Polygon/BSC $0.50,
-  Avalanche/Fantom/Gnosis $0.30, else $2), capital $50–250 by TVL (deployed, recoverable),
-  hold 30/45/60 days by age. Only the gas is spent.
+  Gauntlet $37.7M, Veda $36.4M, USDD $29.5M — all SKIP: a $1,000 slice of a
+  $46.5M launch on $2.75B of TVL is $1.69 against $3.20 of fees, net −$4.80.
+  The big rows are mostly SKIP; the money is in the small rows.
+- **Verdicts:** FARM 142, THIN 23, SKIP 33. The verdict follows the net, not the
+  value: each row's $1,000 slice at a 10% airdrop share is netted against
+  all-in fees (4 transactions on the plan's cheapest chain, plus a $3 bridge
+  when that chain is not Ethereum) and the 4% T-bill yield the capital gives
+  up over the hold. FARM = the slice beats fees and the T-bill, THIN = the
+  slice beats the fees, SKIP = neither.
+- **Farm plans:** eight steps each, concrete actions with a cost and a time:
+  fresh wallet; bridge + fund / act on the cheapest chain; weekly check-in
+  (time only); hold 30/45/60 days by age; a growth note; claim + exit; a net
+  step stating the slice, the fees, the T-bill, the net, the work hours, the
+  net per hour and the verdict; a farm log. Capital is a flat $1,000 (the
+  slice, not a deployment). Gas is a stated table, Nov-2026 typical
+  (Ethereum $3/tx, Solana $0.05, Base/Arbitrum $0.10, Robinhood $0.25,
+  BNB $0.30, Berachain $0.50, Avalanche $0.30, Monad $0.05, Polygon $0.05,
+  Sonic $0.10, Sui $0.10, Aptos $0.05, other $1.00).
 
 ## The dashboard
 
 - **Board** — sortable by every column, filterable by search, category, chain, verdict and
   watchlist-only. Click a row for the detail sheet: model breakdown, a recompute check (the
   page recomputes the value from the snapshot's own figures and the fitted curve and
-  confirms it matches the board), and the full farm plan.
+  confirms it matches the board), a farm-economics section (slice, fees, T-bill, net,
+  work, net per hour, pays-from) with a net-at table across airdrop shares and capitals,
+  and the full farm plan.
 - **Size curve chart** — the 92 comparables as dots against the fitted line, with the
   curve's typical-error band (line ± the leave-one-out median error, ×2.89) shaded in,
   so the curve is visible, not asserted — and so is how far it reaches. The 95% band

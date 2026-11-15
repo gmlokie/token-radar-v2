@@ -60,4 +60,4 @@ ol.steps li{margin:8px 0;font-size:14px}
 ol.steps .c{color:var(--muted);font-size:13px}
 .close{position:absolute;top:10px;right:12px;background:none;border:0;color:var(--muted);font-size:18px;cursor:pointer}
 footer{padding:0 24px 24px;color:var(--muted);font-size:13px;max-width:900px}
-@media (max-width:760px){.kv{grid-template-columns:1fr}th:nth-child(4),td:nth-child(4),th:nth-child(7),td:nth-child(7){display:none}}
+@media (max-width:760px){.kv{grid-template-columns:1fr}#board th:nth-child(4),#board td:nth-child(4),#board th:nth-child(5),#board td:nth-child(5),#board th:nth-child(10),#board td:nth-child(10),#board th:nth-child(11),#board td:nth-child(11),#board th:nth-child(12),#board td:nth-child(12){display:none}}

@@ -49,10 +49,15 @@
 //     that improves it is decoration. The multipliers were hand-set, so this is the test
 //     that says whether they are tested choices or decoration.
 //
-// The farm plan is netted to the dollar: every step states its cost and its time, the plan sums
-// the gas, and the last step gives a verdict (FARM, THIN or SKIP) from the protocol's implied
-// value against that cost. Gas is priced per chain (the chain sets the fee, not the protocol),
-// capital is deployed and recoverable, so only gas is spent.
+// The farm plan is netted to the dollar: every step states its cost and its time, and the
+// last step nets the plan — a $1,000 position's slice of a 10% airdrop, minus all-in fees
+// (four transactions on the plan's cheapest chain, plus one bridge when that chain is not
+// Ethereum), minus the 4% T-bill yield the capital gives up over the hold. The verdict
+// follows the net, not the value: FARM when the slice beats every cost, THIN when it
+// beats the fees but not the T-bill, SKIP otherwise. Gas is priced per chain (the chain
+// sets the fee, not the protocol); capital is deployed and recoverable, so only fees and
+// the forgone yield are spent. Weekly upkeep is time, not gas: the position is held and
+// checked, no transaction is needed while it is held.
 
 /** The snapshot's protocol entry: exactly the ten fields the sealed input carries. */
 export interface SnapshotProtocol {
@@ -92,19 +97,16 @@ export interface ModelConstants {
   unknown_age_days: number;
   chain_step: number;
   chain_cap: number;
-  /** The verdict's implied-value lines, in dollars: FARM at or above farm_line, THIN at thin_line. */
-  farm_line: number;
-  thin_line: number;
-  /**
-   * The verdict's gas sanity check, as a share of the implied value. A farm is worth doing
-   * when the protocol could be big and the gas is a rounding error next to it, so the check
-   * is a ratio, not a flat dollar cap: a flat cap makes a $24.6M protocol SKIP over $6 of
-   * gas (an Ethereum plan runs $48–$64, and a $50 cap cliffs it). The gas must be under 1%
-   * of the implied value — a $5M protocol tolerates a $50,000 bill, a $25M one $250,000 —
-   * so in practice the check only ever fires against an absurd bill; the driver is the
-   * implied value, and the gas itself is reported in the plan for the reader to see.
-   */
-  gas_ratio: number;
+  /** The verdict's economics, all stated in the research note: the slice is priced at this capital. */
+  slice_capital_usd: number;
+  /** The airdrop share of the implied value the slice assumes (10% default; the detail view shows 5/10/20%). */
+  airdrop_share: number;
+  /** The annual T-bill yield the capital gives up over the hold, as a fraction. */
+  tbill_annual: number;
+  /** One bridge transaction when the plan's cheapest chain is not Ethereum. */
+  bridge_usd: number;
+  /** The gas of one transaction on Ethereum, in dollars (November 2026 typical; stated, not a live quote). */
+  gas_ethereum_usd: number;
   /** Bootstrap resamples for the slope's stability band. */
   bootstrap_resamples: number;
   /** The seed that makes the bootstrap deterministic. */
@@ -125,16 +127,18 @@ export const MODEL: ModelConstants = {
   unknown_age_days: 365,
   chain_step: 0.03,
   chain_cap: 1.12,
-  farm_line: 25_000_000,
-  thin_line: 5_000_000,
-  gas_ratio: 0.01,
+  slice_capital_usd: 1000,
+  airdrop_share: 0.1,
+  tbill_annual: 0.04,
+  bridge_usd: 3,
+  gas_ethereum_usd: 3,
   bootstrap_resamples: 200,
   bootstrap_seed: 20261114,
   blind_split_seed: 20261115,
 };
 
 /** The model's version label: the dashboard names it and the rules quote it. */
-export const MODEL_VERSION = 'radar-4';
+export const MODEL_VERSION = 'radar-5';
 
 /** How many pre-token protocols below the watchlist floor the early radar carries, by implied value. */
 export const EARLY_ROWS = 160;
@@ -167,6 +171,24 @@ export interface BoardRow {
   implied_value_usd: number;
   verdict: 'FARM' | 'THIN' | 'SKIP';
   farm_cost_usd: number;
+  /** The farm's economics at the standard slice: a $1,000 position's share of a 10% airdrop. */
+  slice_usd: number;
+  /** All-in fees: four transactions on the plan's cheapest chain, plus one bridge when that chain is not Ethereum. */
+  fees_usd: number;
+  /** The T-bill yield the $1,000 gives up over the hold (4% annual). */
+  tbill_usd: number;
+  /** slice minus fees minus T-bill: what farming this row nets at the standard slice. */
+  net_usd: number;
+  /** The plan's work in hours (setup + weekly check-ins + claim + log). */
+  work_hours: number;
+  /** Net per hour of work. */
+  net_per_hour_usd: number;
+  /** The smallest capital at which the net turns positive, or null when it never does. */
+  pays_from_usd: number | null;
+  /** The chain the plan runs on: the cheapest of the protocol's chains. */
+  plan_chain: string;
+  /** The hold in days the plan assumes. */
+  hold_days: number;
   model: {
     curve_intercept: number;
     curve_slope: number;
@@ -195,6 +217,15 @@ export interface RadarRow {
   implied_value_usd: number;
   verdict: 'FARM' | 'THIN' | 'SKIP';
   farm_cost_usd: number;
+  slice_usd: number;
+  fees_usd: number;
+  tbill_usd: number;
+  net_usd: number;
+  work_hours: number;
+  net_per_hour_usd: number;
+  pays_from_usd: number | null;
+  plan_chain: string;
+  hold_days: number;
   growth_multiplier: number;
   maturity_multiplier: number;
   chain_multiplier: number;
@@ -625,6 +656,15 @@ export function buildBoard(snapshot: Snapshot, fitted: FittedCurve, model: Model
     implied_value_usd: s.implied,
     verdict: s.plan.verdict,
     farm_cost_usd: s.plan.totalGasUsd,
+    slice_usd: s.plan.sliceUsd,
+    fees_usd: s.plan.totalGasUsd,
+    tbill_usd: s.plan.tbillUsd,
+    net_usd: s.plan.netUsd,
+    work_hours: s.plan.workHours,
+    net_per_hour_usd: s.plan.netPerHourUsd,
+    pays_from_usd: s.plan.paysFromUsd,
+    plan_chain: s.plan.planChain,
+    hold_days: s.plan.holdDays,
     model: {
       curve_intercept: Math.round(fitted.fit.intercept * 1e4) / 1e4,
       curve_slope: Math.round(fitted.fit.slope * 1e4) / 1e4,
@@ -649,27 +689,28 @@ export function stepText(step: FarmStep): string {
   return s;
 }
 
-/** The first chain a protocol names, or a neutral phrase. */
-function chainOf(p: SnapshotProtocol): string {
-  return p.chains.length > 0 ? p.chains[0]! : 'its main chain';
-}
-
-/** What one transaction costs on a chain, in dollars: the chain sets the fee, not the protocol. */
-function gasPerTx(chain: string): number {
+/** What one transaction costs on a chain, in dollars: the chain sets the fee, not the protocol.
+ * November 2026 typical values, stated as an assumption, not a live quote: Ethereum $3 (a
+ * swap or mint action at low gas, not a 2021-era $8), Solana $0.05, the big L2s $0.50. */
+function gasPerTx(chain: string, model: ModelConstants = MODEL): number {
   const c = chain.toLowerCase();
-  if (c === 'ethereum') return 8;
+  if (c === 'ethereum') return model.gas_ethereum_usd;
   if (c === 'solana') return 0.05;
   if (c === 'base' || c === 'arbitrum' || c === 'optimism' || c === 'polygon' || c === 'bsc' || c === 'bnb chain') return 0.5;
   if (c === 'avalanche' || c === 'fantom' || c === 'gnosis') return 0.3;
   return 2;
 }
 
-/** How much capital one farm position needs, from the protocol's own TVL. */
-function capitalFor(p: SnapshotProtocol): number {
-  if (p.tvl_usd >= 5_000_000_000) return 250;
-  if (p.tvl_usd >= 1_000_000_000) return 150;
-  if (p.tvl_usd >= 100_000_000) return 100;
-  return 50;
+/** The cheapest chain a protocol names, with its per-transaction gas. */
+function cheapestChain(p: SnapshotProtocol, model: ModelConstants = MODEL): { chain: string; gas: number } {
+  const chains = p.chains.length > 0 ? p.chains : ['Ethereum'];
+  let best = chains[0]!;
+  let bestGas = gasPerTx(best, model);
+  for (const c of chains) {
+    const g = gasPerTx(c, model);
+    if (g < bestGas) { best = c; bestGas = g; }
+  }
+  return { chain: best, gas: bestGas };
 }
 
 /** How long to hold, from the protocol's age: younger protocols get a longer qualifying window. */
@@ -699,12 +740,37 @@ function actionFor(p: SnapshotProtocol, capital: number, chain: string): string 
   return `Deposit $${capital} of USDC into ${name} on ${chain} and keep the position open.`;
 }
 
-/** The farm plan's verdict: FARM, THIN or SKIP, from the implied value against the gas it costs. */
-export function verdictFor(implied: number, totalGasUsd: number, model: ModelConstants = MODEL): 'FARM' | 'THIN' | 'SKIP' {
-  if (totalGasUsd > implied * model.gas_ratio) return 'SKIP';
-  if (implied >= model.farm_line) return 'FARM';
-  if (implied >= model.thin_line) return 'THIN';
+/** The farm plan's verdict, from the economics, not from the value alone: FARM when the
+ * standard slice beats every cost (fees plus the T-bill yield given up), THIN when the
+ * slice beats the fees but not the T-bill, SKIP otherwise. A big protocol with a thin
+ * slice is a SKIP however large its implied value is — the slice is what the farmer
+ * is paid, and a $2.60 slice does not cover $3.20 of fees. */
+export function econVerdict(netUsd: number, sliceUsd: number, feesUsd: number): 'FARM' | 'THIN' | 'SKIP' {
+  if (netUsd > 0) return 'FARM';
+  if (sliceUsd > feesUsd) return 'THIN';
   return 'SKIP';
+}
+
+/** The smallest capital at which the net turns positive, or null when it never does.
+ * net(C) = C·share·implied/(TVL+C) − fees − C·tbillRate·hold/365: the slice saturates at
+ * share·implied while the T-bill cost grows with C, so the net rises from −fees, crosses
+ * zero once (the smaller root), peaks, and falls again. Null when the slice rate at
+ * zero capital cannot beat the T-bill rate — then no capital ever pays. */
+export function paysFrom(
+  implied: number,
+  tvl: number,
+  feesUsd: number,
+  holdDays: number,
+  model: ModelConstants = MODEL,
+): number | null {
+  const k = model.tbill_annual * (holdDays / 365);
+  const sI = model.airdrop_share * implied;
+  if (sI / tvl - k <= 0) return null;
+  const b = sI - feesUsd - k * tvl;
+  const disc = b * b - 4 * k * feesUsd * tvl;
+  if (disc < 0) return null;
+  const root = (b - Math.sqrt(disc)) / (2 * k);
+  return root > 0 ? Math.round(root) : null;
 }
 
 /** A protocol's farm plan: eight steps, each an action with a cost and a time, netted to the dollar. */
@@ -713,18 +779,36 @@ export interface FarmPlan {
   verdict: 'FARM' | 'THIN' | 'SKIP';
   totalGasUsd: number;
   capitalUsd: number;
+  sliceUsd: number;
+  tbillUsd: number;
+  netUsd: number;
+  workHours: number;
+  netPerHourUsd: number;
+  paysFromUsd: number | null;
+  planChain: string;
+  holdDays: number;
 }
 
 export function farmPlan(p: SnapshotProtocol, age: number | null, implied: number, model: ModelConstants = MODEL): FarmPlan {
-  const chain = chainOf(p);
-  const gas = gasPerTx(chain);
-  const capital = capitalFor(p);
+  const { chain, gas } = cheapestChain(p, model);
+  const capital = model.slice_capital_usd;
   const hold = holdDaysFor(age);
   const weeks = Math.max(1, Math.ceil(hold / 7));
-  const weeklyGas = gas * weeks;
-  const totalGas = Math.round((gas + weeklyGas + gas) * 100) / 100;
+  // Four transactions on the plan chain (fund, the action, claim, exit) plus one bridge
+  // when the plan chain is not Ethereum. Weekly upkeep is time, not gas: the position
+  // is held and checked, no transaction is needed while it is held — a program that
+  // demanded a weekly on-chain action would cost that chain's weekly gas on top.
+  const bridge = chain.toLowerCase() === 'ethereum' ? 0 : model.bridge_usd;
+  const totalGas = Math.round((4 * gas + bridge) * 100) / 100;
+  const tbill = Math.round(capital * model.tbill_annual * (hold / 365) * 100) / 100;
+  const slice = (capital / (p.tvl_usd + capital)) * model.airdrop_share * implied;
+  const sliceUsd = Math.round(slice * 100) / 100;
+  const netUsd = Math.round((sliceUsd - totalGas - tbill) * 100) / 100;
+  const workHours = Math.round(((5 + 15 + 10 * weeks + 5 * weeks + 10 + 5) / 60) * 10) / 10;
+  const netPerHourUsd = Math.round((netUsd / workHours) * 100) / 100;
+  const paysFromUsd = paysFrom(implied, p.tvl_usd, totalGas, hold, model);
+  const verdict = econVerdict(netUsd, sliceUsd, totalGas);
   const action = actionFor(p, capital, chain);
-  const verdict = verdictFor(implied, totalGas, model);
   const growthNote =
     p.change_7d === null
       ? `Its seven-day TVL change is unreported, so farm small and watch the first week.`
@@ -735,14 +819,22 @@ export function farmPlan(p: SnapshotProtocol, age: number | null, implied: numbe
           : `Its TVL moved ${p.change_7d.toFixed(1)}% in seven days: steady, so a plain position is enough.`;
   const verdictLine =
     verdict === 'FARM'
-      ? `Verdict FARM: implied value $${implied.toLocaleString('en-US')} against $${totalGas.toFixed(2)} of gas, so the position is worth the cost.`
+      ? `Verdict FARM: a $${capital.toLocaleString('en-US')} slice of $${sliceUsd.toFixed(2)} beats $${totalGas.toFixed(2)} of fees and $${tbill.toFixed(2)} of T-bill given up, netting $${netUsd.toFixed(2)} in ${workHours}h of work.`
       : verdict === 'THIN'
-        ? `Verdict THIN: implied value $${implied.toLocaleString('en-US')} against $${totalGas.toFixed(2)} of gas, so farm it only with the minimum position.`
-        : `Verdict SKIP: implied value $${implied.toLocaleString('en-US')} against $${totalGas.toFixed(2)} of gas, so the cost is not worth the position.`;
+        ? `Verdict THIN: a $${capital.toLocaleString('en-US')} slice of $${sliceUsd.toFixed(2)} beats $${totalGas.toFixed(2)} of fees but not the $${tbill.toFixed(2)} of T-bill given up, netting $${netUsd.toFixed(2)}.`
+        : `Verdict SKIP: a $${capital.toLocaleString('en-US')} slice of $${sliceUsd.toFixed(2)} does not cover $${totalGas.toFixed(2)} of fees and $${tbill.toFixed(2)} of T-bill given up, netting $${netUsd.toFixed(2)}.`;
   return {
     verdict,
     totalGasUsd: totalGas,
     capitalUsd: capital,
+    sliceUsd,
+    tbillUsd: tbill,
+    netUsd,
+    workHours,
+    netPerHourUsd,
+    paysFromUsd,
+    planChain: chain,
+    holdDays: hold,
     steps: [
       {
         text: `Use a fresh wallet that holds only the funds you plan to farm, and keep its seed phrase offline.`,
@@ -750,13 +842,13 @@ export function farmPlan(p: SnapshotProtocol, age: number | null, implied: numbe
         time: '5 minutes',
       },
       {
-        text: action,
+        text: `${bridge > 0 ? `Bridge $${capital} to ${chain} (about $${bridge.toFixed(2)}), then ` : ``}${action}`,
         cost: `$${capital} of capital deployed (recoverable) and about $${gas.toFixed(2)} of gas`,
         time: '15 minutes to set up',
       },
       {
-        text: `Make one qualifying action each week, such as a deposit, a borrow, a swap or a vote.`,
-        cost: `about $${gas.toFixed(2)} of gas a week, $${weeklyGas.toFixed(2)} over ${weeks} weeks`,
+        text: `Check the protocol's own points or rewards page each week; no transaction is needed while the position is held.`,
+        cost: 'nothing to check, and never pay to claim',
         time: '10 minutes a week',
       },
       {
@@ -766,17 +858,17 @@ export function farmPlan(p: SnapshotProtocol, age: number | null, implied: numbe
       },
       {
         text: growthNote,
-        cost: 'nothing to watch, and never pay to claim',
+        cost: 'nothing to watch',
         time: '5 minutes a week',
       },
       {
-        text: `Before you withdraw, open the protocol's own points or rewards page and claim only from the link it publishes.`,
-        cost: `about $${gas.toFixed(2)} of gas to claim`,
+        text: `Before you withdraw, open the protocol's own points or rewards page and claim only from the link it publishes, then exit the position.`,
+        cost: `about $${(2 * gas).toFixed(2)} of gas to claim and exit`,
         time: '10 minutes',
       },
       {
-        text: `Net the plan: gas $${totalGas.toFixed(2)} in all (set-up $${gas.toFixed(2)}, weekly $${weeklyGas.toFixed(2)}, claim $${gas.toFixed(2)}), capital $${capital} deployed and recoverable. ${verdictLine}`,
-        cost: `total gas $${totalGas.toFixed(2)}`,
+        text: `Net the plan: slice $${sliceUsd.toFixed(2)} (a $${capital.toLocaleString('en-US')} position's share of a 10% airdrop of a $${implied.toLocaleString('en-US')} launch) minus fees $${totalGas.toFixed(2)} minus T-bill $${tbill.toFixed(2)}, net $${netUsd.toFixed(2)} (${netPerHourUsd >= 0 ? '+' : ''}$${netPerHourUsd.toFixed(2)}/h over ${workHours}h). ${verdictLine}`,
+        cost: `total fees $${totalGas.toFixed(2)}`,
         time: `${hold} days from set-up to claim`,
       },
       {
@@ -821,6 +913,15 @@ export function radarRow(row: BoardRow): RadarRow {
     implied_value_usd: row.implied_value_usd,
     verdict: row.verdict,
     farm_cost_usd: row.farm_cost_usd,
+    slice_usd: row.slice_usd,
+    fees_usd: row.fees_usd,
+    tbill_usd: row.tbill_usd,
+    net_usd: row.net_usd,
+    work_hours: row.work_hours,
+    net_per_hour_usd: row.net_per_hour_usd,
+    pays_from_usd: row.pays_from_usd,
+    plan_chain: row.plan_chain,
+    hold_days: row.hold_days,
     growth_multiplier: row.model.growth_multiplier,
     maturity_multiplier: row.model.maturity_multiplier,
     chain_multiplier: row.model.chain_multiplier,

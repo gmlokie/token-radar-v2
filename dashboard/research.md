@@ -111,6 +111,53 @@ the chart; stated, it is the honest number: the curve locates the order of magni
 not the price. A reader who wants the board's verdicts to mean more than that is
 asking the curve for something its own residuals say it cannot give.
 
+## The farm verdicts are economics, not value lines
+
+A verdict used to mean "implied value over $25M". That is a value line, not a farm
+decision: a $46M protocol whose $1,000 slice is $1.69 does not pay $3.20 of fees, and
+calling it FARM would be the board lying about the money. So the verdict now follows
+the net, computed for every row the same way:
+
+    slice = $1,000 / (TVL + $1,000) × 10% × implied value
+    fees  = 4 transactions on the plan's cheapest chain + $3 bridge when that chain
+            is not Ethereum (gas: Ethereum $3, Solana $0.05, Base/Arbitrum/Optimism/
+            Polygon/BSC $0.50, Avalanche/Fantom/Gnosis $0.30, other $2 — November 2026
+            typical values, stated, not a live quote)
+    T-bill = $1,000 × 4% × hold / 365 (30 days for protocols a year or older, 45 days
+            for 6–12 months, 60 days for under 6 months)
+    net   = slice − fees − T-bill
+
+FARM when the net is positive (the slice beats every cost), THIN when the slice beats
+the fees but not the T-bill, SKIP otherwise. The board shows the slice, the net, the
+fees, the hold and the work for every row, and the detail view shows the net at 5%,
+10% and 20% airdrop shares and at $1,000, $10,000 and $100,000 of capital — the
+verdict is the 10% / $1,000 cell, and a reader who assumes a smaller airdrop can read
+the verdict that assumption gives. The plan runs on the cheapest of the protocol's
+chains, and the weekly upkeep is time, not gas: the position is held and checked, no
+transaction is needed while it is held. A program that demanded a weekly on-chain
+action would cost that chain's weekly gas on top, and the row's fees would rise by it.
+
+The numbers this gives: 142 FARM, 23 THIN, 33 SKIP at the $1,000 / 10% standard, and
+the best net per watchlist hour is $3.96 (Tulipa Capital, net +$7.12 in 1.8h); the best
+on the whole board is $26.22 (Manifest Trade, net +$47.20 in 1.8h, an early row below
+the floor). The five best-paying hours on the board:
+
+| protocol | slice | fees | net | work | net/hour |
+|---|---|---|---|---|---|
+| Manifest Trade | $53.69 | $3.20 | +$47.20 | 1.8h | +$26.22/h |
+| BTCFi CDP | $55.19 | $5.00 | +$46.90 | 1.8h | +$26.06/h |
+| Nucleus | $51.66 | $5.00 | +$43.37 | 1.8h | +$24.09/h |
+| Theo Network thBill | $48.77 | $3.20 | +$42.28 | 1.8h | +$23.49/h |
+| SyncSwap | $53.47 | $11.00 | +$39.18 | 1.8h | +$21.77/h |
+
+The big rows are mostly SKIP — Steakhouse Financial's $46.5M is worth a $1.69 slice against
+$3.20 of fees, net −$4.80 — while the small rows farm: a $4.9M launch on $9M of TVL
+pays $53.69 on the slice. That inversion is the point of netting the plan: the board
+is sorted by implied value, but the money is in the slice, and the slice is
+implied value divided by TVL. Position yield is not counted; it is upside if the vault
+or pool pays one. And the 10% share is an assumption, stated wherever the verdict is:
+at 5% the FARM count falls, at 20% it rises, and the detail view shows both.
+
 ## The honest limitation: R² 0.16
 
 TVL explains about a sixth of market cap. The rest is the protocol itself — its team,
@@ -125,6 +172,21 @@ number is weighed, not hidden.
 - **A category multiple on top of the curve.** The same leave-one-out test worsened the
   median error from ×2.89 to ×3.59. The category is still used — for the farm plan's
   action and for the dashboard's filter — but it does not move the price.
+- **A family multiple, tested again with shrunk offsets.** Six mechanism families
+  (Vaults, Lending, Trading, RWA, Staking, Infra) with mean-residual offsets shrunk as
+  if 3, 6, 12 or 24 extra tokens sat on the curve: the full-pipeline leave-one-out
+  worsened from ×2.80 to ×4.02, ×3.96, ×3.69 and ×3.54. The offsets are large
+  (Trading ×1.60, Infra ×1.48, Lending ×0.54) and they do not generalise — with 92
+  comparables, a family mean is mostly the noise of its few tokens. No family multiple
+  ships, on this test, twice.
+- **A wider comparable set, in the style of a curve that fits 101 tokens.** Including
+  the CEX and liquid-staking tokens this board excludes, and trimming ratios outside
+  1/500–50x instead of winsorising: leave-one-out ×3.05 and pipeline ×2.95 (n=105),
+  against ×2.89 and ×2.80 on the board's own 92. Winsorising the wider set instead
+  gives ×3.19 and ×3.02 (n=109). The wider set's R² is higher (0.31 against 0.16)
+  and its slope steeper (0.59 against 0.45) — but R² is not prediction, and every
+  blind test says the narrower, winsorised set predicts the tokens that already trade
+  better. The board keeps its 92.
 - **A multiple regression (log10 TVL + growth + age + chains, all fitted).** R² 0.16 →
   0.17, adjusted R² 0.15 → 0.13, leave-one-out ×2.89 → ×3.01, time-split ×2.14 →
   ×15.84. The fitted coefficients are near zero (growth 0.01, age −0.03, chains −0.04):
@@ -175,6 +237,7 @@ the snapshot is small.
 
 There is no local judge score for this competition: the server grades every entry. The
 implied values are this entry's own claim, never make.fun's. Pre-token is the record,
-not proof a protocol has no token. And the farm plans are plans, not promises: gas is
-priced per chain, capital is deployed and recoverable, and a verdict of FARM means the
-implied value dwarfs the gas — not that a launch will pay.
+not proof a protocol has no token. And the farm plans are plans, not promises: a
+verdict of FARM means a $1,000 slice beats its fees and the T-bill yield given up at a
+10% airdrop share — at 5% the same row may be a SKIP, and the detail view shows both.
+Gas is a stated table, not a live quote, and a launch may never happen at all.
